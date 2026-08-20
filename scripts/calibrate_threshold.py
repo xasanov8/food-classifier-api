@@ -56,7 +56,13 @@ def main() -> None:
                         default=Path("../uzbek-food-classifier/data/splits.json"))
     parser.add_argument("--split", default="test")
     parser.add_argument("--models-dir", type=Path, default=Path("models"))
-    parser.add_argument("--target-coverage", type=float, default=0.90,
+    # 0.70 — ataylab qat'iy. Bu xizmatning va'dasi: "ishonchli" deb
+    # belgilangan javob haqiqatan to'g'ri bo'lsin. Qamrovni 0.90 ga
+    # ko'tarsak chegara 0.25 ga tushadi va tanlangan aniqlik 0.77 bo'lib
+    # qoladi — ya'ni chegara deyarli hech narsa qilmaydi. 0.70 da esa
+    # ishonchli javoblarning ~88 foizi to'g'ri chiqadi, qolgan 30 foiz
+    # holatda xizmat halol "aniq ayta olmayman" deydi.
+    parser.add_argument("--target-coverage", type=float, default=0.70,
                         help="Kamida shuncha ulush bashorat saqlanishi kerak")
     parser.add_argument("--write", action="store_true",
                         help="Tanlangan chegarani models/labels.json ga yozish")
@@ -83,7 +89,7 @@ def main() -> None:
 
     for i, rel in enumerate(items):
         with Image.open(args.data_root / rel) as img:
-            batch = preprocess(img)
+            batch = preprocess(img, classifier.image_size)
         logits, _ = classifier.predict_array(batch)
         probs = np.exp(logits[0] - logits[0].max())
         probs /= probs.sum()

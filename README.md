@@ -3,8 +3,8 @@
 FastAPI + ONNX Runtime + Docker. Notebook'dagi modelni HTTP xizmatiga aylantirish.
 
 [`uzbek-food-classifier`](https://github.com/xasanov8/uzbek-food-classifier) loyihasida
-o'qitilgan ResNet18 modelini oladi, ONNX'ga eksport qiladi va konteynerda
-xizmat sifatida ishga tushiradi.
+o'qitilgan ResNet18 modelini oladi (16 ta o'zbek taomi, 288px), ONNX'ga
+eksport qiladi va konteynerda xizmat sifatida ishga tushiradi.
 
 ```
 rasm -> preprocessing (NumPy) -> ONNX Runtime -> softmax -> chegara -> JSON
@@ -84,14 +84,21 @@ o'lik tugunlar tashlanadi, xotira joylashuvi qayta rejalashtiriladi.
 O'lchov: RTX 3050 Ti laptop, **CPU inference** (production konteynerida GPU
 bo'lmaydi), 150 ta chaqiruv + 20 ta warmup.
 
+O'lchov 288x288 kirishda (joriy model), 100 chaqiruv + 15 warmup:
+
 | Backend | Batch | Median | p95 | O'tkazuvchanlik |
 |---|---|---|---|---|
-| PyTorch | 1 | 31.76 ms | 33.57 ms | 31.5 rasm/s |
-| **ONNX Runtime** | 1 | **19.46 ms** | 22.27 ms | **51.4 rasm/s** |
-| PyTorch | 8 | 190.64 ms | 214.84 ms | 42.0 rasm/s |
-| **ONNX Runtime** | 8 | **159.52 ms** | 174.01 ms | **50.2 rasm/s** |
+| PyTorch | 1 | 42.34 ms | 46.00 ms | 23.6 rasm/s |
+| **ONNX Runtime** | 1 | **32.14 ms** | 33.26 ms | **31.1 rasm/s** |
+| PyTorch | 8 | 290.49 ms | 313.54 ms | 27.5 rasm/s |
+| **ONNX Runtime** | 8 | **251.51 ms** | 263.92 ms | **31.8 rasm/s** |
 
-**Tezlashuv: batch=1 da 1.63x, batch=8 da 1.20x.**
+**Tezlashuv: batch=1 da 1.32x, batch=8 da 1.15x.**
+
+224px li 5 sinfli modelda tezlashuv kattaroq edi (1.63x / 19.46 ms).
+Rezolyutsiya 288 ga ko'tarilgach ikkala backend ham sekinlashdi va
+ONNX'ning nisbiy ustunligi qisqardi — katta tenzorlarda graf
+optimizatsiyasining ulushi kamayadi.
 
 Batch=1 da farq kattaroq — aynan shu API uchun muhim rejim, chunki
 foydalanuvchi bittadan rasm yuklaydi. Katta batch'da PyTorch o'zining
@@ -101,11 +108,12 @@ Eksport ekvivalentligi tekshiriladi — `scripts/export_onnx.py` ikkala modelni
 tasodifiy kirishlarda solishtiradi:
 
 ```
-PyTorch va ONNX orasidagi maksimal farq: 1.79e-06
+Arxitektura: resnet18, o'lcham: 288, sinflar (16): [...]
+PyTorch va ONNX orasidagi maksimal farq: 3.58e-06
 Tekshiruv o'tdi: ikkala model bir xil natija beradi.
 ```
 
-1.79e-06 — fp32 hisob-kitobning tabiiy tafovuti. Bundan kattasi eksport
+3.58e-06 — fp32 hisob-kitobning tabiiy tafovuti. Bundan kattasi eksport
 xatosidan darak berardi va skript xato bilan to'xtardi.
 
 Ikkinchi yutuq — **bog'liqliklar hajmi**: `model.onnx` 42.6 MB, va
@@ -115,7 +123,7 @@ g'ildiraklari ~800 MB joy egallaydi; `onnxruntime` ~15 MB.
 O'lchovni qayta ishlab ko'rish:
 
 ```bash
-python scripts/benchmark.py --runs 150
+python scripts/benchmark.py --runs 100
 ```
 
 ---
@@ -148,10 +156,16 @@ python scripts/verify_parity.py --images ../uzbek-food-classifier/data/clean
 Natija:
 
 ```
+Rasm o'lchami        : 288
 Tekshirilgan rasmlar : 120
 Maksimal farq        : 0.000e+00
 OK: xizmatdagi preprocessing o'qitishdagi bilan bir xil.
 ```
+
+Rasm o'lchami ham `models/labels.json` dan o'qiladi. Ilgari u kodda
+`224` deb qotirib yozilgan edi — model 288px da qayta o'qitilgach, bu
+xizmatni jimgina noto'g'ri kesib berishga majbur qilardi. Aynan
+shu turdagi xato uchun parity testi yozilgan.
 
 **Bu test darhol haqiqiy xatoni topdi.** Birinchi versiyada `Resize` uzun
 tomonni `round()` bilan yaxlitlagan edi, torchvision esa `int()` bilan
@@ -179,16 +193,19 @@ Yechim — ishonch chegarasi. `max(softmax) < T` bo'lsa javob
 ```json
 {
   "label": "somsa",
-  "confidence": 0.31,
+  "confidence": 0.27,
   "is_confident": false,
   "message": "Ishonch past. Bu taom modelga tanish bo'lmasligi yoki rasm noaniq bo'lishi mumkin...",
   "top_k": [
-    {"label": "somsa", "score": 0.31},
-    {"label": "qatlama", "score": 0.28},
-    {"label": "non", "score": 0.17}
+    {"label": "somsa", "score": 0.27},
+    {"label": "qatlama", "score": 0.22},
+    {"label": "non", "score": 0.14}
   ]
 }
 ```
+
+Bu muammoni foydalanuvchi topdi: kovatak (tok bargidagi dolma) rasmini
+yubordi, model uni ishonch bilan boshqa taom deb atadi.
 
 Chegara qiymati ko'zdan taxmin qilinmaydi —
 [`scripts/calibrate_threshold.py`](scripts/calibrate_threshold.py) uni test
@@ -207,6 +224,23 @@ qiymatni `models/labels.json` ga yozadi.
 ```bash
 python scripts/calibrate_threshold.py --write
 ```
+
+Joriy model uchun egri chiziq (625 ta test rasmi, chegarasiz aniqlik 0.7296):
+
+| Chegara | Qamrov | Tanlangan aniqlik |
+|---|---|---|
+| 0.25 | 0.930 | 0.7676 |
+| 0.35 | 0.830 | 0.8112 |
+| **0.45** | **0.704** | **0.8773** |
+| 0.55 | 0.610 | 0.9081 |
+| 0.70 | 0.474 | 0.9392 |
+
+**0.45 tanlandi.** Ya'ni xizmat "ishonchli" desa, javoblarning
+**87.7 foizi** to'g'ri — chegarasiz bu 73 foiz edi. Buning evaziga
+rasmlarning 30 foizida xizmat halol "aniq ayta olmayman" deydi.
+
+Chegarani yanada ko'tarish aniqlikni oshiradi, lekin qamrov yarmiga
+tushadi — foydalanuvchi uchun bu yomonroq tajriba.
 
 Ustuvorlik tartibi: `MIN_CONFIDENCE` muhit o'zgaruvchisi -> model bilan
 kelgan kalibrlangan qiymat -> sukut (0.45).
@@ -265,25 +299,37 @@ pytest -q
 
 ### Uchdan-uchgacha tekshiruv
 
-Xizmat haqiqiy rasmlarda ishga tushirib ko'rilgan (`uvicorn app.main:app`):
+Xizmat haqiqiy rasmlarda ishga tushirib ko'rilgan. Har bir sinfdan bitta
+test rasmi yuborildi:
 
 ```
-$ curl -s localhost:8000/health
-{"status":"ok","backend":"onnx","model":"resnet18","classes":5}
+chuchvara   -> OK   chuchvara   0.783  ishonchli
+dimlama     -> OK   dimlama     0.422  ishonchsiz
+hasip       -> OK   hasip       0.391  ishonchsiz
+kovatak     -> XATO mastava     0.443  ishonchsiz
+lagmon      -> XATO somsa       0.254  ishonchsiz
+manti       -> OK   manti       0.526  ishonchli
+mastava     -> OK   mastava     0.874  ishonchli
+non         -> OK   non         0.852  ishonchli
+norin       -> OK   norin       0.954  ishonchli
+osh         -> OK   osh         0.371  ishonchsiz
+qatlama     -> XATO somsa       0.270  ishonchsiz
+shashlik    -> XATO hasip       0.229  ishonchsiz
+shurva      -> OK   shurva      0.392  ishonchsiz
+somsa       -> OK   somsa       0.596  ishonchli
+sumalak     -> OK   sumalak     0.778  ishonchli
+tuxum_barak -> OK   tuxum_barak 0.306  ishonchsiz
 
-$ curl -s -X POST localhost:8000/predict -F "file=@osh.jpg"
-{"filename":"osh.jpg","label":"osh","confidence":0.9361,
- "scores":{"chuchvara":0.0153,"lagmon":0.0113,"manti":0.0089,
-           "osh":0.9361,"somsa":0.0285},
- "latency_ms":18.92,"backend":"onnx"}
-
-$ curl -s -X POST localhost:8000/predict -F "file=@somsa.jpg"
-{"label":"somsa","confidence":0.9976, ... "latency_ms":16.9}
+12/16 to'g'ri, 9 tasida model ishonchsiz
 ```
+
+Diqqat qiling: **to'rtta xatoning hammasi "ishonchsiz" deb belgilangan**,
+va ishonchli deb belgilangan yettita javobning hammasi to'g'ri. Chegara
+aynan shuning uchun qo'yilgan.
 
 Web interfeys ham brauzerda tekshirilgan: rasm yuklanganda `/predict`
-chaqiriladi, natija va besh sinf bo'yicha ehtimolliklar ko'rsatiladi
-(`osh`, ishonch 93.6%, 16.9 ms, backend `onnx`).
+chaqiriladi, ishonch past bo'lsa "Aniq ayta olmayman" holati va eng
+yaqin 5 variant ko'rsatiladi.
 
 Testlar mock ishlatmaydi — haqiqiy ONNX model yuklanadi. Tekshiriladi:
 softmax haqiqiy ehtimollik taqsimoti ekani, bir xil rasm bir xil natija

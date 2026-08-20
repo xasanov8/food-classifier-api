@@ -1,0 +1,107 @@
+{
+  "split": "test",
+  "n": 625,
+  "baseline_accuracy": 0.7296,
+  "chosen_threshold": 0.45,
+  "coverage": 0.704,
+  "selective_accuracy": 0.8773,
+  "target_coverage": 0.7,
+  "curve": [
+    {
+      "threshold": 0.2,
+      "coverage": 0.9824,
+      "selective_accuracy": 0.7394,
+      "lost_correct": 2
+    },
+    {
+      "threshold": 0.25,
+      "coverage": 0.9296,
+      "selective_accuracy": 0.7676,
+      "lost_correct": 10
+    },
+    {
+      "threshold": 0.3,
+      "coverage": 0.8848,
+      "selective_accuracy": 0.7812,
+      "lost_correct": 24
+    },
+    {
+      "threshold": 0.35,
+      "coverage": 0.8304,
+      "selective_accuracy": 0.8112,
+      "lost_correct": 35
+    },
+    {
+      "threshold": 0.4,
+      "coverage": 0.7744,
+      "selective_accuracy": 0.8409,
+      "lost_correct": 49
+    },
+    {
+      "threshold": 0.45,
+      "coverage": 0.704,
+      "selective_accuracy": 0.8773,
+      "lost_correct": 70
+    },
+    {
+      "threshold": 0.5,
+      "coverage": 0.656,
+      "selective_accuracy": 0.9,
+      "lost_correct": 87
+    },
+    {
+      "threshold": 0.55,
+      "coverage": 0.6096,
+      "selective_accuracy": 0.9081,
+      "lost_correct": 110
+    },
+    {
+      "threshold": 0.6,
+      "coverage": 0.5632,
+      "selective_accuracy": 0.9261,
+      "lost_correct": 130
+    },
+    {
+      "threshold": 0.65,
+      "coverage": 0.512,
+      "selective_accuracy": 0.9281,
+      "lost_correct": 159
+    },
+    {
+      "threshold": 0.7,
+      "coverage": 0.4736,
+      "selective_accuracy": 0.9392,
+      "lost_correct": 178
+    },
+    {
+      "threshold": 0.75,
+      "coverage": 0.416,
+      "selective_accuracy": 0.9462,
+      "lost_correct": 210
+    },
+    {
+      "threshold": 0.8,
+      "coverage": 0.3488,
+      "selective_accuracy": 0.9541,
+      "lost_correct": 248
+    },
+    {
+      "threshold": 0.85,
+      "coverage": 0.264,
+      "selective_accuracy": 0.9576,
+      "lost_correct": 298
+    },
+    {
+      "threshold": 0.9,
+      "coverage": 0.1616,
+      "selective_accuracy": 0.9604,
+      "lost_correct": 359
+    },
+    {
+      "threshold": 0.95,
+      "coverage": 0.0768,
+      "selective_accuracy": 0.9792,
+      "lost_correct": 409
+    }
+  ]
+}

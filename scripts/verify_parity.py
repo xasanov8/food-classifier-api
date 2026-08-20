@@ -36,14 +36,28 @@ def main() -> None:
                         help="Rasmlar papkasi (rekursiv qidiriladi)")
     parser.add_argument("--limit", type=int, default=40)
     parser.add_argument("--tolerance", type=float, default=1e-5)
+    parser.add_argument("--models-dir", type=Path, default=Path("models"))
     args = parser.parse_args()
 
-    import torch
+    import json
+
     from torchvision import transforms
 
+    from app.preprocessing import DEFAULT_IMAGE_SIZE, RESIZE_RATIO
+
+    # O'lchamni modeldan olamiz — parity testining o'zi eskirgan
+    # konstantani tekshirib o'tirishi bema'nilik bo'lardi.
+    labels_file = args.models_dir / "labels.json"
+    if labels_file.exists():
+        image_size = int(json.loads(labels_file.read_text(encoding="utf-8"))
+                         .get("image_size", DEFAULT_IMAGE_SIZE))
+    else:
+        image_size = DEFAULT_IMAGE_SIZE
+    print(f"Rasm o'lchami            : {image_size}")
+
     reference = transforms.Compose([
-        transforms.Resize(int(224 * 1.14)),
-        transforms.CenterCrop(224),
+        transforms.Resize(int(image_size * RESIZE_RATIO)),
+        transforms.CenterCrop(image_size),
         transforms.ToTensor(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
     ])
@@ -59,7 +73,7 @@ def main() -> None:
         with Image.open(path) as img:
             img = img.convert("RGB")
             expected = reference(img).unsqueeze(0).numpy()
-            actual = preprocess(img)
+            actual = preprocess(img, image_size)
 
         diff = float(np.abs(expected - actual).max())
         if diff > worst:

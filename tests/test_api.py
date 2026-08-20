@@ -145,7 +145,7 @@ def test_preprocessing_output_shape_and_range():
     from app.preprocessing import preprocess
 
     with Image.open(io.BytesIO(make_image((640, 480)))) as img:
-        array = preprocess(img)
+        array = preprocess(img, 224)
 
     assert array.shape == (1, 3, 224, 224)
     assert array.dtype == np.float32
@@ -158,5 +158,6 @@ def test_preprocessing_handles_non_square():
     from app.preprocessing import preprocess
 
     for size in [(1000, 200), (200, 1000), (224, 224), (300, 300)]:
-        with Image.open(io.BytesIO(make_image(size))) as img:
-            assert preprocess(img).shape == (1, 3, 224, 224)
+        for target in (224, 288):
+            with Image.open(io.BytesIO(make_image(size))) as img:
+                assert preprocess(img, target).shape == (1, 3, target, target)

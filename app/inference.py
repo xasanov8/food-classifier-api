@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from app.preprocessing import preprocess_bytes, softmax
+from app.preprocessing import DEFAULT_IMAGE_SIZE, preprocess_bytes, softmax
 
 # Model yo'li joriy ish katalogiga EMAS, paketning o'ziga nisbatan
 # aniqlanadi. Aks holda xizmat qayerdan ishga tushirilganiga bog'liq
@@ -68,6 +68,8 @@ class Classifier:
         meta = json.loads(meta_file.read_text(encoding="utf-8"))
         self.classes: list[str] = meta["classes"]
         self.arch: str = meta.get("arch", "resnet18")
+        # O'qitishda ishlatilgan o'lcham — xizmat uni taxmin qilmasligi kerak.
+        self.image_size: int = int(meta.get("image_size", DEFAULT_IMAGE_SIZE))
 
         # Ustuvorlik: konstruktor argumenti -> muhit o'zgaruvchisi ->
         # modelning o'zi bilan kelgan kalibrlangan qiymat -> sukut.
@@ -134,7 +136,7 @@ class Classifier:
         return logits, (time.perf_counter() - started) * 1000.0
 
     def predict(self, raw: bytes, top_k: int = 3) -> Prediction:
-        batch = preprocess_bytes(raw)
+        batch = preprocess_bytes(raw, self.image_size)
         logits, latency_ms = self.predict_array(batch)
         probs = softmax(logits)[0]
 
@@ -157,6 +159,8 @@ class Classifier:
     def warmup(self, runs: int = 3) -> None:
         """Birinchi so'rov har doim sekin (lazy init, xotira ajratish).
         Startupda bir necha marta bo'sh o'tkazamiz."""
-        dummy = np.zeros((1, 3, 224, 224), dtype=np.float32)
+        dummy = np.zeros(
+            (1, 3, self.image_size, self.image_size), dtype=np.float32
+        )
         for _ in range(runs):
             self.predict_array(dummy)

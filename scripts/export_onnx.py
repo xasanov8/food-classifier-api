@@ -38,7 +38,8 @@ def main() -> None:
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, default=Path("models"))
     parser.add_argument("--opset", type=int, default=17)
-    parser.add_argument("--image-size", type=int, default=224)
+    parser.add_argument("--image-size", type=int, default=None,
+                        help="Sukut: checkpointdagi qiymat")
     parser.add_argument("--no-check", action="store_true")
     args = parser.parse_args()
 
@@ -47,8 +48,13 @@ def main() -> None:
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     classes = checkpoint["classes"]
     arch = checkpoint["arch"]
+    # O'lcham checkpointdan olinadi — qo'lda kiritish preprocessing
+    # bilan mos kelmay qolish xavfini tug'diradi.
+    if args.image_size is None:
+        args.image_size = int(checkpoint.get("image_size", 224))
     print(f"Checkpoint: {args.checkpoint}")
-    print(f"Arxitektura: {arch}, sinflar: {classes}")
+    print(f"Arxitektura: {arch}, o'lcham: {args.image_size}, "
+          f"sinflar ({len(classes)}): {classes}")
 
     model = build_model(arch, len(classes))
     model.load_state_dict(checkpoint["model_state"])

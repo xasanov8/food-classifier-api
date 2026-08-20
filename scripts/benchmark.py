@@ -73,7 +73,10 @@ def main() -> None:
 
         results["backends"][backend] = {}
         for batch_size in args.batch_sizes:
-            batch = rng.standard_normal((batch_size, 3, 224, 224)).astype(np.float32)
+            size = classifier.image_size
+            batch = rng.standard_normal(
+                (batch_size, 3, size, size)
+            ).astype(np.float32)
             stats = bench(classifier, batch, args.runs, args.warmup)
             results["backends"][backend][f"batch{batch_size}"] = stats
             print(

@@ -29,8 +29,14 @@ from PIL import Image
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
-IMAGE_SIZE = 224
-RESIZE_TO = int(IMAGE_SIZE * 1.14)  # = 255, o'qitishdagi qiymat bilan bir xil
+# Sukut qiymat. Haqiqiy o'lcham modeldan keladi (labels.json -> image_size)
+# va Classifier uni preprocess() ga uzatadi.
+#
+# Ilgari bu yerda 224 qotirib yozilgan edi. Model boshqa o'lchamda
+# o'qitilsa, xizmat jimgina noto'g'ri kesib bera boshlardi — bu aynan
+# verify_parity.py oldini olishga mo'ljallangan xato turi.
+DEFAULT_IMAGE_SIZE = 224
+RESIZE_RATIO = 1.14  # torchvision quvuridagi Resize(int(size * 1.14))
 
 
 def resize_shorter_side(image: Image.Image, target: int) -> Image.Image:
@@ -65,11 +71,11 @@ def center_crop(image: Image.Image, size: int) -> Image.Image:
     return image.crop((left, top, left + size, top + size))
 
 
-def preprocess(image: Image.Image) -> np.ndarray:
-    """PIL rasm -> (1, 3, 224, 224) float32 NCHW massiv."""
+def preprocess(image: Image.Image, image_size: int = DEFAULT_IMAGE_SIZE) -> np.ndarray:
+    """PIL rasm -> (1, 3, S, S) float32 NCHW massiv."""
     image = image.convert("RGB")
-    image = resize_shorter_side(image, RESIZE_TO)
-    image = center_crop(image, IMAGE_SIZE)
+    image = resize_shorter_side(image, int(image_size * RESIZE_RATIO))
+    image = center_crop(image, image_size)
 
     array = np.asarray(image, dtype=np.float32) / 255.0        # ToTensor
     array = (array - IMAGENET_MEAN) / IMAGENET_STD             # Normalize
@@ -77,10 +83,10 @@ def preprocess(image: Image.Image) -> np.ndarray:
     return np.ascontiguousarray(array[None, ...], dtype=np.float32)
 
 
-def preprocess_bytes(raw: bytes) -> np.ndarray:
+def preprocess_bytes(raw: bytes, image_size: int = DEFAULT_IMAGE_SIZE) -> np.ndarray:
     with Image.open(io.BytesIO(raw)) as image:
         image.load()
-        return preprocess(image)
+        return preprocess(image, image_size)
 
 
 def softmax(logits: np.ndarray) -> np.ndarray:

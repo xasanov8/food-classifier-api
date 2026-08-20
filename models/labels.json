@@ -1,14 +1,26 @@
 {
   "classes": [
     "chuchvara",
+    "dimlama",
+    "hasip",
+    "kovatak",
     "lagmon",
     "manti",
+    "mastava",
+    "non",
+    "norin",
     "osh",
-    "somsa"
+    "qatlama",
+    "shashlik",
+    "shurva",
+    "somsa",
+    "sumalak",
+    "tuxum_barak"
   ],
   "arch": "resnet18",
-  "image_size": 224,
+  "image_size": 288,
   "opset": 17,
-  "source_checkpoint": "..\\uzbek-food-classifier\\reports\\resnet18\\best.pt",
-  "val_acc": 0.8695652173913043
+  "source_checkpoint": "..\\uzbek-food-classifier\\reports\\resnet18_288\\best.pt",
+  "val_acc": 0.7392,
+  "min_confidence": 0.45
 }
