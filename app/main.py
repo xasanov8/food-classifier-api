@@ -22,7 +22,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.inference import Classifier
-from app.schemas import BatchResponse, ClassesResponse, HealthResponse, PredictResponse
+from app.schemas import (
+    BatchResponse,
+    Candidate,
+    ClassesResponse,
+    HealthResponse,
+    PredictResponse,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,7 +52,8 @@ async def lifespan(app: FastAPI):
     classifier = Classifier(backend=BACKEND)
     classifier.warmup()
     state["classifier"] = classifier
-    logger.info("Tayyor. Sinflar: %s", classifier.classes)
+    logger.info("Tayyor. %d ta sinf, ishonch chegarasi %.2f",
+                len(classifier.classes), classifier.min_confidence)
     yield
     state.clear()
 
@@ -54,15 +61,39 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="O'zbek taomlari klassifikatori",
     description=(
-        "ResNet18 fine-tuned, ONNX Runtime orqali xizmat qiladi. "
-        "Sinflar: osh, somsa, manti, lag'mon, chuchvara."
+        "O'zbek milliy taomlarini rasmdan aniqlaydi. ResNet fine-tuned, "
+        "ONNX Runtime orqali xizmat qiladi. Sinflar ro'yxati: GET /classes. "
+        "Ishonch chegarasidan past natijalar is_confident=false bilan belgilanadi."
     ),
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+LOW_CONFIDENCE_MESSAGE = (
+    "Ishonch past. Bu taom modelga tanish bo'lmasligi yoki rasm noaniq "
+    "bo'lishi mumkin. Quyida eng yaqin variantlar keltirildi."
+)
+
+
+def build_response(
+    classifier: Classifier, filename: str | None, result
+) -> PredictResponse:
+    return PredictResponse(
+        filename=filename,
+        label=result.label,
+        confidence=round(result.confidence, 4),
+        is_confident=result.is_confident,
+        message=None if result.is_confident else LOW_CONFIDENCE_MESSAGE,
+        top_k=[Candidate(label=name, score=round(score, 4))
+               for name, score in result.top_k],
+        scores={k: round(v, 4) for k, v in result.scores.items()},
+        latency_ms=result.latency_ms,
+        backend=classifier.backend,
+    )
 
 
 def get_classifier() -> Classifier:
@@ -106,13 +137,18 @@ async def health() -> HealthResponse:
         backend=BACKEND,
         model=classifier.arch if classifier else None,
         classes=len(classifier.classes) if classifier else 0,
+        min_confidence=classifier.min_confidence if classifier else 0.0,
     )
 
 
 @app.get("/classes", response_model=ClassesResponse)
 async def classes() -> ClassesResponse:
     classifier = get_classifier()
-    return ClassesResponse(classes=classifier.classes, backend=classifier.backend)
+    return ClassesResponse(
+        classes=classifier.classes,
+        backend=classifier.backend,
+        min_confidence=classifier.min_confidence,
+    )
 
 
 @app.post("/predict", response_model=PredictResponse)
@@ -125,14 +161,7 @@ async def predict(file: UploadFile = File(...)) -> PredictResponse:
         logger.exception("Bashorat xatosi")
         raise HTTPException(status_code=400, detail=f"Rasmni o'qib bo'lmadi: {exc}") from exc
 
-    return PredictResponse(
-        filename=file.filename,
-        label=result.label,
-        confidence=round(result.confidence, 4),
-        scores={k: round(v, 4) for k, v in result.scores.items()},
-        latency_ms=result.latency_ms,
-        backend=classifier.backend,
-    )
+    return build_response(classifier, file.filename, result)
 
 
 @app.post("/predict/batch", response_model=BatchResponse)
@@ -153,16 +182,7 @@ async def predict_batch(files: list[UploadFile] = File(...)) -> BatchResponse:
             logger.warning("O'tkazib yuborildi %s: %s", file.filename, exc)
             continue
         total_ms += result.latency_ms
-        results.append(
-            PredictResponse(
-                filename=file.filename,
-                label=result.label,
-                confidence=round(result.confidence, 4),
-                scores={k: round(v, 4) for k, v in result.scores.items()},
-                latency_ms=result.latency_ms,
-                backend=classifier.backend,
-            )
-        )
+        results.append(build_response(classifier, file.filename, result))
 
     if not results:
         raise HTTPException(status_code=400, detail="Hech qaysi rasm o'qilmadi")

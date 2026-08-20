@@ -45,12 +45,50 @@ def test_health(client):
     body = response.json()
     assert body["status"] == "ok"
     assert body["classes"] > 0
+    assert 0.0 <= body["min_confidence"] <= 1.0
 
 
 def test_classes(client):
     body = client.get("/classes").json()
     assert isinstance(body["classes"], list)
     assert len(body["classes"]) >= 2
+
+
+def test_low_confidence_is_flagged(client):
+    """Softmax hech qachon "bilmayman" demaydi — bayroq shu bo'shliqni yopadi.
+
+    Bir tekis kulrang kvadrat hech qanday taomga o'xshamaydi. Model baribir
+    biror sinfni tanlaydi, lekin javob `is_confident` bayrog'i bilan
+    kelishi va past ishonchda izoh berishi kerak.
+    """
+    response = client.post(
+        "/predict",
+        files={"file": ("flat.jpg", make_image(color=(128, 128, 128)), "image/jpeg")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+
+    assert isinstance(body["is_confident"], bool)
+    # Bayroq chegara bilan izchil bo'lishi shart
+    threshold = client.get("/health").json()["min_confidence"]
+    assert body["is_confident"] == (body["confidence"] >= threshold)
+    # Ishonch past bo'lsa foydalanuvchiga izoh boradi, yuqori bo'lsa yo'q
+    assert (body["message"] is None) == body["is_confident"]
+
+
+def test_top_k_is_sorted_and_consistent(client):
+    body = client.post(
+        "/predict", files={"file": ("t.jpg", make_image(), "image/jpeg")}
+    ).json()
+
+    top_k = body["top_k"]
+    assert 1 <= len(top_k) <= len(client.get("/classes").json()["classes"])
+    scores = [c["score"] for c in top_k]
+    assert scores == sorted(scores, reverse=True), "top_k tartiblanmagan"
+    assert top_k[0]["label"] == body["label"]
+    assert abs(top_k[0]["score"] - body["confidence"]) < 1e-6
+    for candidate in top_k:
+        assert abs(body["scores"][candidate["label"]] - candidate["score"]) < 1e-6
 
 
 def test_predict_returns_valid_distribution(client):

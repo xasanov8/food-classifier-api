@@ -7,7 +7,7 @@ o'qitilgan ResNet18 modelini oladi, ONNX'ga eksport qiladi va konteynerda
 xizmat sifatida ishga tushiradi.
 
 ```
-rasm -> preprocessing (NumPy) -> ONNX Runtime -> softmax -> JSON
+rasm -> preprocessing (NumPy) -> ONNX Runtime -> softmax -> chegara -> JSON
 ```
 
 ---
@@ -60,13 +60,14 @@ curl -X POST http://localhost:8000/predict \
   "filename": "osh.jpg",
   "label": "osh",
   "confidence": 0.9614,
-  "scores": {
-    "chuchvara": 0.0071,
-    "lagmon": 0.0183,
-    "manti": 0.0094,
-    "osh": 0.9614,
-    "somsa": 0.0038
-  },
+  "is_confident": true,
+  "message": null,
+  "top_k": [
+    {"label": "osh", "score": 0.9614},
+    {"label": "lagmon", "score": 0.0183},
+    {"label": "manti", "score": 0.0094}
+  ],
+  "scores": { "...": "barcha sinflar bo'yicha to'liq taqsimot" },
   "latency_ms": 18.4,
   "backend": "onnx"
 }
@@ -165,14 +166,59 @@ Farq bir piksel. Lekin undan keyingi `CenterCrop` butunlay boshqa sohani
 kesib oladi — natijadagi tenzorlar orasidagi maksimal farq **2.15** edi.
 Test bo'lmaganida bu production'ga jimgina o'tib ketardi.
 
-### 3. Model bir marta yuklanadi
+### 3. Softmax hech qachon "bilmayman" demaydi
+
+Bu xizmatning eng ko'p uchraydigan amaliy muammosi. Softmax har doim
+yig'indisi 1 ga teng taqsimot qaytaradi — model ro'yxatda yo'q taomni
+(yoki umuman taom bo'lmagan rasmni) ko'rsa ham, ballarni mavjud sinflar
+orasida taqsimlaydi va ko'pincha **yuqori ishonch bilan xato aytadi**.
+
+Yechim — ishonch chegarasi. `max(softmax) < T` bo'lsa javob
+`is_confident: false` bilan keladi va foydalanuvchiga izoh beriladi:
+
+```json
+{
+  "label": "somsa",
+  "confidence": 0.31,
+  "is_confident": false,
+  "message": "Ishonch past. Bu taom modelga tanish bo'lmasligi yoki rasm noaniq bo'lishi mumkin...",
+  "top_k": [
+    {"label": "somsa", "score": 0.31},
+    {"label": "qatlama", "score": 0.28},
+    {"label": "non", "score": 0.17}
+  ]
+}
+```
+
+Chegara qiymati ko'zdan taxmin qilinmaydi —
+[`scripts/calibrate_threshold.py`](scripts/calibrate_threshold.py) uni test
+to'plamida kalibrlaydi. Har bir chegara uchun ikkita raqam hisoblanadi:
+
+| Metrika | Ma'nosi |
+|---|---|
+| `coverage` | nechta bashorat "ishonchli" deb qoldi |
+| `selective_accuracy` | shu qoldirilganlar orasidagi aniqlik |
+
+Chegara juda past bo'lsa noma'lum taomlar o'tib ketadi; juda baland
+bo'lsa to'g'ri bashoratlar ham "bilmayman" ga aylanadi. Skript berilgan
+minimal qamrovni saqlagan holda tanlangan aniqlikni maksimallashtiradi va
+qiymatni `models/labels.json` ga yozadi.
+
+```bash
+python scripts/calibrate_threshold.py --write
+```
+
+Ustuvorlik tartibi: `MIN_CONFIDENCE` muhit o'zgaruvchisi -> model bilan
+kelgan kalibrlangan qiymat -> sukut (0.45).
+
+### 4. Model bir marta yuklanadi
 
 Model FastAPI `lifespan` da yuklanadi va `state` da saqlanadi. Har so'rovda
 qayta yuklash ~300 ms qo'shar va xotirani behuda sarflar edi.
 Startupda `warmup()` bir necha bo'sh chaqiruv qiladi — birinchi haqiqiy
 so'rov sekin bo'lmasligi uchun.
 
-### 4. Xavfsizlik va chegaralar
+### 5. Xavfsizlik va chegaralar
 
 | Chegara | Qiymat | Sabab |
 |---|---|---|
@@ -198,6 +244,7 @@ app/
 scripts/
   export_onnx.py    checkpoint -> ONNX + ekvivalentlik tekshiruvi
   benchmark.py      PyTorch vs ONNX latency
+  calibrate_threshold.py  ishonch chegarasini test to'plamida tanlash
   verify_parity.py  preprocessing parity testi
 static/index.html   drag & drop interfeys
 tests/test_api.py   API va preprocessing testlari
@@ -213,7 +260,7 @@ pytest -q
 ```
 
 ```
-10 passed
+12 passed
 ```
 
 ### Uchdan-uchgacha tekshiruv
@@ -255,6 +302,7 @@ kesilishi.
 | `ORT_THREADS` | `2` | ONNX Runtime oqimlari soni |
 | `MAX_UPLOAD_BYTES` | `8388608` | Yuklash chegarasi |
 | `MAX_BATCH` | `16` | Batch so'rovdagi rasmlar chegarasi |
+| `MIN_CONFIDENCE` | kalibrlangan | Bundan past ishonch `is_confident: false` |
 
 ---
 

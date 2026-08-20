@@ -25,10 +25,24 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = Path(os.getenv("MODELS_DIR") or _PACKAGE_ROOT / "models")
 
 
+# Ishonch chegarasi. Bundan past bo'lsa xizmat "aniq ayta olmayman" deydi.
+#
+# Nima uchun kerak: softmax har doim yig'indisi 1 ga teng taqsimot beradi.
+# Model ro'yxatda yo'q taomni (yoki umuman taom bo'lmagan rasmni) ko'rsa,
+# u "bilmayman" deya olmaydi — ballarni baribir mavjud sinflar orasida
+# taqsimlaydi. Natijada pitsa surati "somsa" bo'lib chiqadi.
+#
+# Chegara qiymati test to'plamida kalibrlanadi:
+#     python scripts/calibrate_threshold.py
+DEFAULT_MIN_CONFIDENCE = 0.45
+
+
 @dataclass
 class Prediction:
     label: str
     confidence: float
+    is_confident: bool
+    top_k: list[tuple[str, float]]
     scores: dict[str, float]
     latency_ms: float
 
@@ -36,7 +50,12 @@ class Prediction:
 class Classifier:
     """Backend'dan qat'i nazar bir xil interfeys."""
 
-    def __init__(self, backend: str = "onnx", models_dir: Path = MODELS_DIR) -> None:
+    def __init__(
+        self,
+        backend: str = "onnx",
+        models_dir: Path = MODELS_DIR,
+        min_confidence: float | None = None,
+    ) -> None:
         self.backend = backend
         self.models_dir = Path(models_dir)
 
@@ -49,6 +68,17 @@ class Classifier:
         meta = json.loads(meta_file.read_text(encoding="utf-8"))
         self.classes: list[str] = meta["classes"]
         self.arch: str = meta.get("arch", "resnet18")
+
+        # Ustuvorlik: konstruktor argumenti -> muhit o'zgaruvchisi ->
+        # modelning o'zi bilan kelgan kalibrlangan qiymat -> sukut.
+        if min_confidence is not None:
+            self.min_confidence = float(min_confidence)
+        elif os.getenv("MIN_CONFIDENCE"):
+            self.min_confidence = float(os.environ["MIN_CONFIDENCE"])
+        else:
+            self.min_confidence = float(
+                meta.get("min_confidence", DEFAULT_MIN_CONFIDENCE)
+            )
 
         if backend == "onnx":
             self._init_onnx()
@@ -103,14 +133,23 @@ class Classifier:
         logits = self._run_onnx(batch) if self.backend == "onnx" else self._run_torch(batch)
         return logits, (time.perf_counter() - started) * 1000.0
 
-    def predict(self, raw: bytes) -> Prediction:
+    def predict(self, raw: bytes, top_k: int = 3) -> Prediction:
         batch = preprocess_bytes(raw)
         logits, latency_ms = self.predict_array(batch)
         probs = softmax(logits)[0]
-        index = int(probs.argmax())
+
+        order = np.argsort(-probs)
+        best = int(order[0])
+        confidence = float(probs[best])
+
         return Prediction(
-            label=self.classes[index],
-            confidence=float(probs[index]),
+            label=self.classes[best],
+            confidence=confidence,
+            is_confident=confidence >= self.min_confidence,
+            top_k=[
+                (self.classes[int(i)], float(probs[int(i)]))
+                for i in order[: min(top_k, len(self.classes))]
+            ],
             scores={name: float(p) for name, p in zip(self.classes, probs)},
             latency_ms=round(latency_ms, 2),
         )

@@ -40,12 +40,12 @@ class SmallCNN(nn.Module):
 def build_model(arch: str, num_classes: int) -> nn.Module:
     if arch == "scratch":
         return SmallCNN(num_classes)
-    if arch == "resnet18":
+    if arch in ("resnet18", "resnet34"):
         from torchvision import models
 
         # weights=None: og'irliklar checkpoint'dan yuklanadi, ImageNet'ni
         # yuklab o'tirish shart emas (offline konteynerda bu muhim).
-        model = models.resnet18(weights=None)
+        model = getattr(models, arch)(weights=None)
         model.fc = nn.Linear(model.fc.in_features, num_classes)
         return model
     raise ValueError(f"noma'lum arxitektura: {arch}")
