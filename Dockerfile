@@ -14,9 +14,9 @@ RUN pip install --no-cache-dir --upgrade pip \
 # ---------- 2-bosqich: ishchi obraz ----------
 FROM python:3.12-slim
 
-# PyTorch bu obrazda YO'Q. requirements.txt faqat onnxruntime, FastAPI
-# va Pillow'ni o'z ichiga oladi — obraz torch bilan ~1.2 GB o'rniga
-# ~450 MB atrofida chiqadi.
+# PyTorch bu obrazda YO'Q. requirements.txt faqat onnxruntime, FastAPI,
+# Pillow va numpy'ni o'z ichiga oladi. Taqqoslash uchun: torch+torchvision
+# g'ildiraklarining o'zi ~800 MB, onnxruntime esa ~15 MB.
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \

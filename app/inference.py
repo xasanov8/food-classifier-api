@@ -17,7 +17,12 @@ import numpy as np
 
 from app.preprocessing import preprocess_bytes, softmax
 
-MODELS_DIR = Path(os.getenv("MODELS_DIR", "models"))
+# Model yo'li joriy ish katalogiga EMAS, paketning o'ziga nisbatan
+# aniqlanadi. Aks holda xizmat qayerdan ishga tushirilganiga bog'liq
+# bo'lib qoladi: `uvicorn` ni boshqa katalogdan chaqirsangiz yoki
+# supervisor/systemd boshqa cwd bilan ishga tushirsa, model topilmaydi.
+_PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+MODELS_DIR = Path(os.getenv("MODELS_DIR") or _PACKAGE_ROOT / "models")
 
 
 @dataclass

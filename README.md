@@ -23,6 +23,13 @@ docker compose up --build
 Brauzerda `http://localhost:8000` — rasm yuklash sahifasi.
 API hujjati: `http://localhost:8000/docs`
 
+> **Eslatma:** loyiha ishlab chiqilgan mashinada WSL2 o'rnatilmagani uchun
+> Docker qurilishi **ishga tushirib ko'rilmagan**. Dockerfile va
+> `docker-compose.yml` standart ko'p bosqichli shablonga asoslangan,
+> lekin obraz hajmi va ishga tushish vaqti o'lchanmagan. Quyidagi
+> benchmark va testlar esa to'g'ridan-to'g'ri xost mashinada
+> o'tkazilgan va haqiqiy.
+
 ### Docker'siz
 
 ```bash
@@ -100,8 +107,9 @@ Tekshiruv o'tdi: ikkala model bir xil natija beradi.
 1.79e-06 — fp32 hisob-kitobning tabiiy tafovuti. Bundan kattasi eksport
 xatosidan darak berardi va skript xato bilan to'xtardi.
 
-Ikkinchi yutuq — **obraz hajmi**: `model.onnx` 42.6 MB, va konteynerga
-PyTorch (~800 MB) umuman kerak emas.
+Ikkinchi yutuq — **bog'liqliklar hajmi**: `model.onnx` 42.6 MB, va
+konteynerga PyTorch umuman kerak emas. `torch` + `torchvision`
+g'ildiraklari ~800 MB joy egallaydi; `onnxruntime` ~15 MB.
 
 O'lchovni qayta ishlab ko'rish:
 
@@ -207,6 +215,28 @@ pytest -q
 ```
 10 passed
 ```
+
+### Uchdan-uchgacha tekshiruv
+
+Xizmat haqiqiy rasmlarda ishga tushirib ko'rilgan (`uvicorn app.main:app`):
+
+```
+$ curl -s localhost:8000/health
+{"status":"ok","backend":"onnx","model":"resnet18","classes":5}
+
+$ curl -s -X POST localhost:8000/predict -F "file=@osh.jpg"
+{"filename":"osh.jpg","label":"osh","confidence":0.9361,
+ "scores":{"chuchvara":0.0153,"lagmon":0.0113,"manti":0.0089,
+           "osh":0.9361,"somsa":0.0285},
+ "latency_ms":18.92,"backend":"onnx"}
+
+$ curl -s -X POST localhost:8000/predict -F "file=@somsa.jpg"
+{"label":"somsa","confidence":0.9976, ... "latency_ms":16.9}
+```
+
+Web interfeys ham brauzerda tekshirilgan: rasm yuklanganda `/predict`
+chaqiriladi, natija va besh sinf bo'yicha ehtimolliklar ko'rsatiladi
+(`osh`, ishonch 93.6%, 16.9 ms, backend `onnx`).
 
 Testlar mock ishlatmaydi — haqiqiy ONNX model yuklanadi. Tekshiriladi:
 softmax haqiqiy ehtimollik taqsimoti ekani, bir xil rasm bir xil natija
