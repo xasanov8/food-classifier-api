@@ -1,0 +1,48 @@
+{
+  "backends": {
+    "torch": {
+      "batch1": {
+        "runs": 150,
+        "mean_ms": 31.673,
+        "median_ms": 31.762,
+        "p95_ms": 33.571,
+        "min_ms": 26.785,
+        "max_ms": 37.385,
+        "throughput_img_s": 31.5
+      },
+      "batch8": {
+        "runs": 150,
+        "mean_ms": 188.825,
+        "median_ms": 190.641,
+        "p95_ms": 214.839,
+        "min_ms": 122.298,
+        "max_ms": 245.021,
+        "throughput_img_s": 42.0
+      }
+    },
+    "onnx": {
+      "batch1": {
+        "runs": 150,
+        "mean_ms": 20.091,
+        "median_ms": 19.465,
+        "p95_ms": 22.27,
+        "min_ms": 18.033,
+        "max_ms": 28.716,
+        "throughput_img_s": 51.4
+      },
+      "batch8": {
+        "runs": 150,
+        "mean_ms": 159.425,
+        "median_ms": 159.517,
+        "p95_ms": 174.011,
+        "min_ms": 142.843,
+        "max_ms": 194.285,
+        "throughput_img_s": 50.2
+      }
+    }
+  },
+  "speedup_onnx_vs_torch": {
+    "batch1": 1.63,
+    "batch8": 1.2
+  }
+}

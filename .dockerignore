@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.aivenv/
+.git/
+.gitignore
+reports/
+scripts/
+tests/
+*.md
+!README.md
+models/best.pt

@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>O'zbek taomlari klassifikatori</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-2: #0ea5e9;
+    --ok: #4ade80;
+    --border: #334155;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem 1rem 4rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 2rem; }
+  h1 { margin: 0 0 .4rem; font-size: 1.7rem; letter-spacing: -.02em; }
+  .sub { color: var(--muted); font-size: .95rem; margin: 0; }
+  .chips { display: flex; gap: .4rem; justify-content: center; flex-wrap: wrap; margin-top: .9rem; }
+  .chip {
+    background: var(--panel); border: 1px solid var(--border);
+    padding: .2rem .7rem; border-radius: 999px; font-size: .8rem; color: var(--muted);
+  }
+
+  #drop {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #drop:hover, #drop.over { border-color: var(--accent); background: var(--panel-2); }
+  #drop p { margin: .3rem 0; }
+  #drop .hint { color: var(--muted); font-size: .85rem; }
+  input[type=file] { display: none; }
+
+  #preview {
+    display: none; margin: 1.4rem auto 0; max-width: 100%; max-height: 320px;
+    border-radius: 12px; border: 1px solid var(--border);
+  }
+
+  #result { display: none; margin-top: 1.4rem; }
+  .verdict {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.1rem 1.3rem;
+  }
+  .verdict .label {
+    font-size: 1.9rem; font-weight: 700; color: var(--ok);
+    text-transform: capitalize; letter-spacing: -.02em;
+  }
+  .verdict .conf { color: var(--muted); font-size: .9rem; }
+
+  .bars { margin-top: 1rem; }
+  .bar-row { display: grid; grid-template-columns: 5.5rem 1fr 3.2rem; gap: .6rem; align-items: center; margin: .35rem 0; }
+  .bar-name { font-size: .85rem; color: var(--muted); text-transform: capitalize; }
+  .bar-track { background: var(--panel-2); border-radius: 6px; height: 9px; overflow: hidden; }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); width: 0; transition: width .35s ease; }
+  .bar-val { font-size: .8rem; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+  .meta { margin-top: .9rem; font-size: .8rem; color: var(--muted); display: flex; gap: 1.2rem; flex-wrap: wrap; }
+  .meta b { color: var(--text); font-weight: 600; }
+
+  #error {
+    display: none; margin-top: 1.2rem; padding: .9rem 1.1rem;
+    background: #7f1d1d; border: 1px solid #b91c1c; border-radius: 10px; font-size: .9rem;
+  }
+  .spinner {
+    display: none; margin: 1.5rem auto 0; width: 28px; height: 28px;
+    border: 3px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer { margin-top: 2.5rem; text-align: center; font-size: .8rem; color: var(--muted); }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>O'zbek taomlari klassifikatori</h1>
+    <p class="sub">Rasm yuklang — model qaysi taom ekanini aytadi</p>
+    <div class="chips" id="chips"></div>
+  </header>
+
+  <div id="drop">
+    <p><strong>Rasmni bu yerga tashlang</strong></p>
+    <p class="hint">yoki bosing va faylni tanlang &middot; JPG / PNG, 8 MB gacha</p>
+    <input type="file" id="file" accept="image/*">
+  </div>
+
+  <img id="preview" alt="Yuklangan rasm">
+  <div class="spinner" id="spinner"></div>
+  <div id="error"></div>
+
+  <div id="result">
+    <div class="verdict">
+      <div class="label" id="label">—</div>
+      <div class="conf" id="conf"></div>
+      <div class="bars" id="bars"></div>
+      <div class="meta">
+        <span>Inference: <b id="latency">—</b></span>
+        <span>Backend: <b id="backend">—</b></span>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    API hujjati: <a href="/docs">/docs</a> &middot; Sog'liq: <a href="/health">/health</a>
+  </footer>
+</div>
+
+<script>
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+const preview = document.getElementById('preview');
+const result = document.getElementById('result');
+const spinner = document.getElementById('spinner');
+const errorBox = document.getElementById('error');
+
+// Model biladigan sinflarni serverdan olamiz — HTML'ga qotirib
+// yozsak, model qayta o'qitilganda ro'yxat eskirib qoladi.
+fetch('/classes')
+  .then(r => r.json())
+  .then(d => {
+    document.getElementById('chips').innerHTML =
+      d.classes.map(c => `<span class="chip">${c}</span>`).join('');
+  })
+  .catch(() => {});
+
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('over');
+  if (e.dataTransfer.files.length) send(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files.length) send(e.target.files[0]);
+});
+
+function show(el, on) { el.style.display = on ? (el.tagName === 'IMG' ? 'block' : 'block') : 'none'; }
+
+async function send(file) {
+  errorBox.style.display = 'none';
+  result.style.display = 'none';
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+  spinner.style.display = 'block';
+
+  const body = new FormData();
+  body.append('file', file);
+
+  try {
+    const res = await fetch('/predict', { method: 'POST', body });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    render(data);
+  } catch (err) {
+    errorBox.textContent = 'Xato: ' + err.message;
+    errorBox.style.display = 'block';
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+function render(data) {
+  document.getElementById('label').textContent = data.label;
+  document.getElementById('conf').textContent =
+    'Ishonch: ' + (data.confidence * 100).toFixed(1) + '%';
+  document.getElementById('latency').textContent = data.latency_ms.toFixed(1) + ' ms';
+  document.getElementById('backend').textContent = data.backend;
+
+  const sorted = Object.entries(data.scores).sort((a, b) => b[1] - a[1]);
+  document.getElementById('bars').innerHTML = sorted.map(([name, value]) => `
+    <div class="bar-row">
+      <span class="bar-name">${name}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${(value * 100).toFixed(1)}%"></span></span>
+      <span class="bar-val">${(value * 100).toFixed(1)}%</span>
+    </div>`).join('');
+
+  result.style.display = 'block';
+}
+</script>
+</body>
+</html>

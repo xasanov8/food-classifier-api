@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.aivenv/
+.pytest_cache/
+.DS_Store
+
+# PyTorch checkpoint xizmat uchun shart emas — u faqat benchmark'ning
+# torch tarmog'ida ishlatiladi. Kerak bo'lsa 1-loyihadan nusxalang.
+models/best.pt

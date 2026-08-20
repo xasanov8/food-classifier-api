@@ -1,0 +1,14 @@
+{
+  "classes": [
+    "chuchvara",
+    "lagmon",
+    "manti",
+    "osh",
+    "somsa"
+  ],
+  "arch": "resnet18",
+  "image_size": 224,
+  "opset": 17,
+  "source_checkpoint": "..\\uzbek-food-classifier\\reports\\resnet18\\best.pt",
+  "val_acc": 0.8695652173913043
+}

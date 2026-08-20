@@ -1,0 +1,7 @@
+# Faqat ishlab chiqish uchun: ONNX eksporti, benchmark, parity testi.
+# Production obraziga kirmaydi.
+-r requirements.txt
+torch==2.6.0
+torchvision==0.21.0
+pytest==8.3.4
+httpx==0.28.1
